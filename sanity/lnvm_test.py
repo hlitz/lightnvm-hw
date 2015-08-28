@@ -192,9 +192,6 @@ def configure_paths(lnvm_device):
     lnvm_config = '/sys/module/lnvm/parameters/configure_debug'
     lnvm_config_cmd = ("echo \"a " + lnvm_device + " " + lnvm_target + " rrpc 0:0\" > " + lnvm_config)
     lnvm_remove_cmd = ("echo \"d " + lnvm_target + "\" > " + lnvm_config)
-    print lnvm_config_cmd
-    print lnvm_remove_cmd
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -202,6 +199,12 @@ def main():
         'Test LightNVM-enabled devices using flexible I/O tester (fio). \
         One of [-c, -s, -a] must be provided. A device [-d] must be also \
         provided.')
+
+    parser.add_argument('-d', '--device', dest='device', action='store',
+                        help='Choose device to create LightNVM target from. \
+                        Supported devices can be seeing executing: \
+                        \'cat /sys/module/lnvm/parameters/configure_debug\'. \
+                        This argument is mandatory.')
 
     parser.add_argument('-g', '--generated', dest='action', action='store_const',
                         const=generated, help='Execute generated fio tests \
@@ -215,12 +218,6 @@ def main():
 
     parser.add_argument('-a', '--all', dest='action', action='store_const',
                         const=all, help='Execute all fio tests.')
-
-    parser.add_argument('-d', '--device', dest='device', action='store', required=True,
-                        help='Choose device to create LightNVM target from. \
-                        Supported devices can be seeing executing: \
-                        \'cat /sys/module/lnvm/parameters/configure_debug\'. \
-                        This argument is mandatory.')
 
     parser.add_argument('-m', '--minimal', action='store_true',
                         help='Execute fio with --minimal and parse output to \
@@ -241,6 +238,7 @@ def main():
     args = parser.parse_args()
     if args.action is None:
         parser.print_help()
+        return
 
     if args.iterations is not None:
         n_iterations = int(args.iterations)
@@ -248,7 +246,10 @@ def main():
 
     if args.device is not None:
         lnvm_device = args.device
-        print lnvm_device
+    else:
+        print "It is required to provide a device (-d)!\n"
+        parser.print_help()
+        return
 
     configure_paths(lnvm_device)
 
