@@ -266,8 +266,10 @@ def main():
         result = subprocess.check_output(lnvm_remove_cmd, shell = True)
 
     result = subprocess.check_output(lnvm_config_cmd, shell = True)
-
     args.action(args, f)
+
+    #Prevent removing lnvm_device too quickly in case of bad input
+    time.sleep(2)
 
     result = subprocess.check_output(lnvm_remove_cmd, shell = True)
 
