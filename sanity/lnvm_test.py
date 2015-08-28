@@ -25,7 +25,7 @@ fio_rw = 'write'
 fio_force = ''
 
 # LightNVM configuration (modifiable from input arguments)
-lnvm_target = 'sanity'
+lnvm_device = 'sanity'
 lnvm_config = '/sys/module/lnvm/parameters/configure_debug'
 lnvm_file = ''
 lnvm_config_cmd = ''
@@ -103,6 +103,12 @@ def execute_minimal_test(command):
 
     return result
 
+def bm_tests(args, f):
+    if not os.path.exists("bm_tests/bm_tests"):
+        result = subprocess.check_output("make -C bm_tests")
+
+    command = ("bm_tests/bm_tests")
+    result = subprocess.call([command, lnvm_device])
 
 def generated(args, f):
     global fio_num_jobs
@@ -183,15 +189,22 @@ def all(args, f):
     scripts(args, f)
     generated(args, f)
 
-def configure_paths(lnvm_device):
+def configure_paths(lnvm_driver, args):
     global lnvm_file
     global lnvm_config_cmd
     global lnvm_remove_cmd
 
-    lnvm_file = '/dev/' + lnvm_target
+    lnvm_file = '/dev/' + lnvm_device
     lnvm_config = '/sys/module/lnvm/parameters/configure_debug'
-    lnvm_config_cmd = ("echo \"a " + lnvm_device + " " + lnvm_target + " rrpc 0:0\" > " + lnvm_config)
-    lnvm_remove_cmd = ("echo \"d " + lnvm_target + "\" > " + lnvm_config)
+
+    if str(args).find("bm_tests") != -1:
+        lnvm_target = "nba"
+    else:
+        lnvm_target = "rrpc"
+
+    lnvm_config_cmd = ("echo \"a " + lnvm_driver + " " + lnvm_device + " " +
+                                        lnvm_target + " 0:0\" > " + lnvm_config)
+    lnvm_remove_cmd = ("echo \"d " + lnvm_device + "\" > " + lnvm_config)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -205,6 +218,10 @@ def main():
                         Supported devices can be seeing executing: \
                         \'cat /sys/module/lnvm/parameters/configure_debug\'. \
                         This argument is mandatory.')
+
+    parser.add_argument('-bm', '--block-manager', dest='action',
+            action='store_const', const=bm_tests, help='Execute LightNVM block \
+            manager unit tests located in bm_tests/')
 
     parser.add_argument('-g', '--generated', dest='action', action='store_const',
                         const=generated, help='Execute generated fio tests \
@@ -245,13 +262,13 @@ def main():
 
 
     if args.device is not None:
-        lnvm_device = args.device
+        lnvm_driver = args.device
     else:
         print "It is required to provide a device (-d)!\n"
         parser.print_help()
         return
 
-    configure_paths(lnvm_device)
+    configure_paths(lnvm_driver, args)
 
     if args.output:
         f = initialize_file()
