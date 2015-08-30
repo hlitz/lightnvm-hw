@@ -104,8 +104,10 @@ def execute_minimal_test(command):
     return result
 
 def bm_tests(args, f):
-    if not os.path.exists("bm_tests/bm_tests"):
-        result = subprocess.check_output("make -C bm_tests")
+    if os.path.exists("bm_tests/bm_tests"):
+        result = subprocess.call(["make", "clean", "-C", "bm_tests"],
+                stdout=None)
+    result = subprocess.call(["make", "-C", "bm_tests"], stdout=None)
 
     command = ("bm_tests/bm_tests")
     result = subprocess.call([command, lnvm_device])

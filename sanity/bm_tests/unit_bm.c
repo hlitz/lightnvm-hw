@@ -17,7 +17,7 @@
 static CuSuite *per_test_suite = NULL;
 static int fd;
 
-static struct dft_block_info vblock_info;
+static struct dft_lun_info vlun_info;
 static struct dft_block vblock;
 
 static int lnvm_open_device(const char *lnvm_dev)
@@ -42,18 +42,26 @@ static int lnvm_get_features()
 {
 	int ret;
 
-	ret = ioctl(fd, LNVM_GET_NPAGES, &vblock_info.n_pages);
+	ret = ioctl(fd, LNVM_GET_NBLOCKS, &vlun_info.n_vblocks);
+	if (ret)
+		perror("Cloud not obtain number of vblocks in LUN");
+
+	ret = ioctl(fd, LNVM_GET_NPAGES, &vlun_info.n_pages_per_blk);
 	if (ret)
 		perror("Could not obtain number of pages from LightNVM");
 
+	printf("BM UNIT TESTS: \n"
+		"\t- Number of vblocks: %lu\n"
+		"\t- Number of pages per block: %lu\n",
+		vlun_info.n_vblocks, vlun_info.n_pages_per_blk);
 	return ret;
 }
 
 /**
  * Test1:
  *	- Get block from LightNVM BM
- *	- Write 1 page
- *	- Read 1 page
+ *	- Write first page
+ *	- Read first page back
  *	- Put block to BM
  */
 static void test_rw_1(CuTest *ct)
@@ -63,12 +71,15 @@ static void test_rw_1(CuTest *ct)
 	unsigned long i;
 	int ret;
 
+	printf("Test1...");
+
 	/* get block from lun 0*/
 	ret = ioctl(fd, LNVM_GET_BLOCK, &vblock);
 	if (ret) {
 		perror("Could not get new block from LightNVM BM");
 		exit(-1);
 	}
+
 
 	for (i = 0; i < PAGE_SIZE; i++)
 		input_payload[i] = i;
@@ -92,6 +103,109 @@ retry:
 	CuAssertByteArrayEquals(ct, input_payload, read_payload,
 							PAGE_SIZE, PAGE_SIZE);
 
+	ret = ioctl(fd, LNVM_PUT_BLOCK, &vblock);
+	if (ret) {
+		perror("Could not put block to LightNVM BM");
+		exit(-1);
+	}
+
+	printf("DONE\n");
+}
+
+/**
+ * Test2:
+ *	- Write and Read all blocks from LightNVM BM
+ *	- Reads and Writes occur at PAGE_SIZE granurality
+ *
+ * This test assumes that all blocks are free. Other tests executed before this
+ * tests must put all blocks back to the BM
+ */
+static void test_rw_2(CuTest *ct)
+{
+	char input_payload[PAGE_SIZE];
+	char read_payload[PAGE_SIZE];
+	unsigned long *block_ids;
+	unsigned long n_left_blocks;
+	unsigned long i, j;
+	int ret;
+
+	printf("Test2...");
+
+	ret = ioctl(fd, LNVM_GET_N_FREE_BLOCKS, &n_left_blocks);
+	if (ret)
+		perror("Cloud not obtain number of vblocks in LUN");
+
+	CuAssertIntEquals(ct, n_left_blocks, vlun_info.n_vblocks);
+
+	block_ids = malloc(n_left_blocks * sizeof(unsigned long));
+	if (!block_ids) {
+		perror("Could not allocate memory for test");
+		exit(-1);
+	}
+
+	for (i = 0; i < vlun_info.n_vblocks; i++) {
+		/* get block from lun 0*/
+		vblock.lun = 0;
+		ret = ioctl(fd, LNVM_GET_BLOCK, &vblock);
+		if (ret) {
+			perror("Could not get new block from LightNVM BM");
+			exit(-1);
+		}
+
+		block_ids[i] = vblock.id;
+
+		for (j = 0; j < vlun_info.n_pages_per_blk; j++) {
+			memset(input_payload, j, PAGE_SIZE);
+
+			ret = pwrite(fd, input_payload, PAGE_SIZE,
+							vblock.bppa + j);
+			if (ret != PAGE_SIZE) {
+				perror("Could not write data to vblock\n");
+			exit(-1);
+			}
+
+retry:
+			ret = pread(fd, read_payload, PAGE_SIZE,
+							vblock.bppa + j);
+			if (ret != PAGE_SIZE) {
+				if (errno == EINTR)
+					goto retry;
+
+				perror("Could not write data to vblock\n");
+				exit(-1);
+			}
+
+			CuAssertByteArrayEquals(ct, input_payload, read_payload,
+							PAGE_SIZE, PAGE_SIZE);
+		}
+	}
+
+	n_left_blocks = 0;
+	ret = ioctl(fd, LNVM_GET_N_FREE_BLOCKS, &n_left_blocks);
+	if (ret)
+		perror("Cloud not obtain number of vblocks in LUN");
+	CuAssertIntEquals(ct, 0, n_left_blocks);
+
+	for (i = 0; i < vlun_info.n_vblocks; i++) {
+		vblock.lun = 0;
+		vblock.id = block_ids[i];
+
+		ret = ioctl(fd, LNVM_PUT_BLOCK, &vblock);
+		if (ret) {
+			perror("Could not put block to LightNVM BM");
+			exit(-1);
+		}
+	}
+
+	n_left_blocks = 0;
+	ret = ioctl(fd, LNVM_GET_N_FREE_BLOCKS, &n_left_blocks);
+	if (ret)
+		perror("Cloud not obtain number of vblocks in LUN");
+
+	CuAssertIntEquals(ct, vlun_info.n_vblocks, n_left_blocks);
+
+	free(block_ids);
+	printf("DONE\n");
 }
 
 CuSuite* bm_GetSuite()
@@ -99,6 +213,7 @@ CuSuite* bm_GetSuite()
 	per_test_suite = CuSuiteNew();
 
 	SUITE_ADD_TEST(per_test_suite, test_rw_1);
+	SUITE_ADD_TEST(per_test_suite, test_rw_2);
 
 	return per_test_suite;
 }
