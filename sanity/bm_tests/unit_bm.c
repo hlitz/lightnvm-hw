@@ -80,18 +80,19 @@ static void test_rw_1(CuTest *ct)
 		exit(-1);
 	}
 
-
 	for (i = 0; i < PAGE_SIZE; i++)
 		input_payload[i] = i;
 
-	ret = pwrite(fd, input_payload, PAGE_SIZE, vblock.bppa);
+	printf("Writing to block %lu - starting ppa: %llu, position: %lu\n", vblock.id,
+								vblock.bppa, i);
+	ret = pwrite(fd, input_payload, PAGE_SIZE, vblock.bppa * 4096);
 	if (ret != PAGE_SIZE) {
 		perror("Could not write data to vblock\n");
 		exit(-1);
 	}
 
 retry:
-	ret = pread(fd, read_payload, PAGE_SIZE, vblock.bppa);
+	ret = pread(fd, read_payload, PAGE_SIZE, vblock.bppa * 4096);
 	if (ret != PAGE_SIZE) {
 		if (errno == EINTR)
 			goto retry;
@@ -143,6 +144,7 @@ static void test_rw_2(CuTest *ct)
 		exit(-1);
 	}
 
+	// Do not write to last page.
 	for (i = 0; i < vlun_info.n_vblocks; i++) {
 		/* get block from lun 0*/
 		vblock.lun = 0;
@@ -153,12 +155,15 @@ static void test_rw_2(CuTest *ct)
 		}
 
 		block_ids[i] = vblock.id;
+		printf("Writing to block %lu - starting ppa: %llu, position: %lu\n", vblock.id,
+								vblock.bppa, i);
 
 		for (j = 0; j < vlun_info.n_pages_per_blk; j++) {
 			memset(input_payload, j, PAGE_SIZE);
 
+			/* printf("Writing to ppa: %llu\n", vblock.bppa + j); */
 			ret = pwrite(fd, input_payload, PAGE_SIZE,
-							vblock.bppa + j);
+						(vblock.bppa + j) * 4096);
 			if (ret != PAGE_SIZE) {
 				perror("Could not write data to vblock\n");
 			exit(-1);
@@ -166,12 +171,12 @@ static void test_rw_2(CuTest *ct)
 
 retry:
 			ret = pread(fd, read_payload, PAGE_SIZE,
-							vblock.bppa + j);
+						(vblock.bppa + j) * 4096);
 			if (ret != PAGE_SIZE) {
 				if (errno == EINTR)
 					goto retry;
 
-				perror("Could not write data to vblock\n");
+				perror("Could not read data from vblock\n");
 				exit(-1);
 			}
 
