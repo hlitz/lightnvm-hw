@@ -1,5 +1,8 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <malloc.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
@@ -26,7 +29,7 @@ static int lnvm_open_device(const char *lnvm_dev)
 	int ret;
 
 	strcat(dev_loc, lnvm_dev);
-	ret = open(dev_loc, O_RDWR);
+	ret = open(dev_loc, O_RDWR | O_DIRECT);
 	if (ret < 0) {
 		printf("Failed to open LightNVM device %s. Error: %d\n",
 								dev_loc, ret);
@@ -66,8 +69,8 @@ static int lnvm_get_features()
  */
 static void test_rw_1(CuTest *ct)
 {
-	char input_payload[PAGE_SIZE];
-	char read_payload[PAGE_SIZE];
+	char *input_payload;
+	char *read_payload;
 	unsigned long i;
 	int ret;
 
@@ -77,6 +80,19 @@ static void test_rw_1(CuTest *ct)
 	ret = ioctl(fd, LNVM_GET_BLOCK, &vblock);
 	if (ret) {
 		perror("Could not get new block from LightNVM BM");
+		exit(-1);
+	}
+
+	/* Allocate aligned memory to use direct IO */
+	input_payload = (char*)memalign(PAGE_SIZE, PAGE_SIZE);
+	if (!input_payload) {
+		perror("Could not allocate alligned memory\n");
+		exit(-1);
+	}
+
+	read_payload = (char*)memalign(PAGE_SIZE, PAGE_SIZE);
+	if (!read_payload) {
+		perror("Could not allocate alligned memory\n");
 		exit(-1);
 	}
 
@@ -110,6 +126,9 @@ retry:
 		exit(-1);
 	}
 
+	free(input_payload);
+	free(read_payload);
+
 	printf("DONE\n");
 }
 
@@ -123,18 +142,20 @@ retry:
  */
 static void test_rw_2(CuTest *ct)
 {
-	char input_payload[PAGE_SIZE];
-	char read_payload[PAGE_SIZE];
+	char *input_payload;
+	char *read_payload;
 	unsigned long *block_ids;
-	unsigned long n_left_blocks;
+	unsigned long n_left_blocks = 0;
 	unsigned long i, j;
 	int ret;
 
 	printf("Test2...");
 
 	ret = ioctl(fd, LNVM_GET_N_FREE_BLOCKS, &n_left_blocks);
-	if (ret)
+	if (ret) {
 		perror("Cloud not obtain number of vblocks in LUN");
+		exit(-1);
+	}
 
 	CuAssertIntEquals(ct, n_left_blocks, vlun_info.n_vblocks);
 
@@ -144,7 +165,19 @@ static void test_rw_2(CuTest *ct)
 		exit(-1);
 	}
 
-	// Do not write to last page.
+	/* Allocate aligned memory to use direct IO */
+	input_payload = (char*)memalign(PAGE_SIZE, PAGE_SIZE);
+	if (!input_payload) {
+		perror("Could not allocate alligned memory\n");
+		exit(-1);
+	}
+
+	read_payload = (char*)memalign(PAGE_SIZE, PAGE_SIZE);
+	if (!read_payload) {
+		perror("Could not allocate alligned memory\n");
+		exit(-1);
+	}
+
 	for (i = 0; i < vlun_info.n_vblocks; i++) {
 		/* get block from lun 0*/
 		vblock.lun = 0;
@@ -159,9 +192,8 @@ static void test_rw_2(CuTest *ct)
 								vblock.bppa, i);
 
 		for (j = 0; j < vlun_info.n_pages_per_blk; j++) {
-			memset(input_payload, j, PAGE_SIZE);
+			memset(input_payload, j + i, PAGE_SIZE);
 
-			/* printf("Writing to ppa: %llu\n", vblock.bppa + j); */
 			ret = pwrite(fd, input_payload, PAGE_SIZE,
 						(vblock.bppa + j) * 4096);
 			if (ret != PAGE_SIZE) {
@@ -182,6 +214,8 @@ retry:
 
 			CuAssertByteArrayEquals(ct, input_payload, read_payload,
 							PAGE_SIZE, PAGE_SIZE);
+
+			memset(read_payload, 0, PAGE_SIZE);
 		}
 	}
 
@@ -210,6 +244,8 @@ retry:
 	CuAssertIntEquals(ct, vlun_info.n_vblocks, n_left_blocks);
 
 	free(block_ids);
+	free(input_payload);
+	free(read_payload);
 	printf("DONE\n");
 }
 
