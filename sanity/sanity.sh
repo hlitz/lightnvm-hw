@@ -6,7 +6,7 @@
 #   https://github.com/OpenChannelSSD/linux/wiki
 # 
 
-DEVICE=nullb0
+DEVICE=nulln0
 TARGET=sanity
 TYPE=rrpc
 START=0
@@ -14,15 +14,16 @@ END=0
 
 IOENGINE=libaio
 NUM_JOBS=1
-SIZE=1G
+SIZE=100%
 IO_DEPTH=1
 BLOCK_SIZE=4k
-RUNTIME=60
+RUNTIME=20
 FIOEXE=fio
 FORCE=
+DELETE=
 
   # Accept some key parameter changes from the command line.
-while getopts "x:d:r:b:n:t:i:s:e:f" opt; do
+while getopts "x:d:r:b:n:t:i:s:e:fl" opt; do
     case "$opt" in
     x)  FIOEXE=${OPTARG}
             ;;
@@ -44,6 +45,8 @@ while getopts "x:d:r:b:n:t:i:s:e:f" opt; do
             ;;
     f)  FORCE=1
             ;;
+    l)  DELETE=1
+            ;;
     \?)
         echo "Invalid option: -$OPTARG" >&2
         exit 1
@@ -55,7 +58,7 @@ while getopts "x:d:r:b:n:t:i:s:e:f" opt; do
     esac
 done
 FILENAME=/dev/${TARGET}
-CONFIG=/sys/block/${DEVICE}/nvm/configure
+CONFIG=/sys/module/lnvm/parameters/configure_debug
 
   # Perform some error checking
 if [ ! -e "$CONFIG" ]; then
@@ -63,11 +66,17 @@ if [ ! -e "$CONFIG" ]; then
      exit 1
 fi
 
+if [ ! -z "$DELETE" ]; then
+    echo "sanity.sh: Deleting $FILENAME as a lnvm drive"
+    echo "d $TARGET" > ${CONFIG}
+    exit 1
+fi
+
 if [ ! -e "$FILENAME" ]; then
-    echo "$TYPE $TARGET $START:$END" > ${CONFIG}
+    echo "a $DEVICE $TARGET $TYPE $START:$END" > ${CONFIG}
 else
     if [ -z "$FORCE" ]; then
-	echo "sanity.sh $FILENAME already exists, use -f to force test."
+	echo "sanity.sh: $FILENAME already exists, use -f to force test."
 	exit 1
     else
 	echo "sanity.sh: Forcing run on an existing block device."
@@ -76,4 +85,4 @@ fi
 
 FILENAME=${FILENAME} SIZE=${SIZE} NUM_JOBS=${NUM_JOBS} IO_DEPTH=${IO_DEPTH} \
     BLOCK_SIZE=${BLOCK_SIZE} RUNTIME=${RUNTIME} IOENGINE=${IOENGINE} \
-    ${FIOEXE} ./sanity.fio
+    ${FIOEXE} ./fio_tests/sanity.fio
