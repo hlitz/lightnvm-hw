@@ -11,17 +11,17 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 
-#include "dft_ioctl.h"
+#include "ioctl.h"
 #include "../CuTest/CuTest.h"
 
-#define LNVM_DEV_MAX_LEN 11
+#define NVM_DEV_MAX_LEN 11
 #define PAGE_SIZE 4096
 
 static CuSuite *per_test_suite = NULL;
 static int fd;
 
-static struct dft_lun_info vlun_info;
-static struct dft_block vblock;
+static struct vlun_info vlun_info;
+static struct nvm_ioctl_vblock vblock;
 
 static int lnvm_open_device(const char *lnvm_dev)
 {
@@ -45,11 +45,11 @@ static int lnvm_get_features()
 {
 	int ret;
 
-	ret = ioctl(fd, LNVM_GET_NBLOCKS, &vlun_info.n_vblocks);
+	ret = ioctl(fd, NVM_DEV_NBLOCKS_LUN, &vlun_info.n_vblocks);
 	if (ret)
 		perror("Cloud not obtain number of vblocks in LUN");
 
-	ret = ioctl(fd, LNVM_GET_NPAGES, &vlun_info.n_pages_per_blk);
+	ret = ioctl(fd, NVM_DEV_NPAGES_BLOCK, &vlun_info.n_pages_per_blk);
 	if (ret)
 		perror("Could not obtain number of pages from LightNVM");
 
@@ -77,7 +77,10 @@ static void test_rw_1(CuTest *ct)
 	printf("Test1...");
 
 	/* get block from lun 0*/
-	ret = ioctl(fd, LNVM_GET_BLOCK, &vblock);
+	vblock.vlun_id = 0;
+
+	/* get block from lun 0*/
+	ret = ioctl(fd, NVM_PR_GET_BLOCK, &vblock);
 	if (ret) {
 		perror("Could not get new block from LightNVM BM");
 		exit(-1);
@@ -99,8 +102,8 @@ static void test_rw_1(CuTest *ct)
 	for (i = 0; i < PAGE_SIZE; i++)
 		input_payload[i] = i;
 
-	printf("Writing to block %lu - starting ppa: %llu, position: %lu\n", vblock.id,
-								vblock.bppa, i);
+	printf("Writing to block %llu - starting ppa: %llu, position: %lu\n",
+						vblock.id, vblock.bppa, i);
 	ret = pwrite(fd, input_payload, PAGE_SIZE, vblock.bppa * 4096);
 	if (ret != PAGE_SIZE) {
 		perror("Could not write data to vblock\n");
@@ -120,7 +123,7 @@ retry:
 	CuAssertByteArrayEquals(ct, input_payload, read_payload,
 							PAGE_SIZE, PAGE_SIZE);
 
-	ret = ioctl(fd, LNVM_PUT_BLOCK, &vblock);
+	ret = ioctl(fd, NVM_PR_PUT_BLOCK, &vblock);
 	if (ret) {
 		perror("Could not put block to LightNVM BM");
 		exit(-1);
@@ -151,9 +154,9 @@ static void test_rw_2(CuTest *ct)
 
 	printf("Test2...");
 
-	ret = ioctl(fd, LNVM_GET_N_FREE_BLOCKS, &n_left_blocks);
+	ret = ioctl(fd, NVM_DEV_NFREE_BLOCKS, &n_left_blocks);
 	if (ret) {
-		perror("Cloud not obtain number of vblocks in LUN");
+		perror("Could not obtain number of vblocks in LUN");
 		exit(-1);
 	}
 
@@ -180,16 +183,16 @@ static void test_rw_2(CuTest *ct)
 
 	for (i = 0; i < vlun_info.n_vblocks; i++) {
 		/* get block from lun 0*/
-		vblock.lun = 0;
-		ret = ioctl(fd, LNVM_GET_BLOCK, &vblock);
+		vblock.vlun_id = 0;
+		ret = ioctl(fd, NVM_PR_GET_BLOCK, &vblock);
 		if (ret) {
 			perror("Could not get new block from LightNVM BM");
 			exit(-1);
 		}
 
 		block_ids[i] = vblock.id;
-		printf("Writing to block %lu - starting ppa: %llu, position: %lu\n", vblock.id,
-								vblock.bppa, i);
+		printf("Lun: %d, Writing to block %llu - starting ppa: %llu, position: %lu\n",
+				vblock.vlun_id, vblock.id, vblock.bppa, i);
 
 		for (j = 0; j < vlun_info.n_pages_per_blk; j++) {
 			memset(input_payload, j + i, PAGE_SIZE);
@@ -220,16 +223,16 @@ retry:
 	}
 
 	n_left_blocks = 0;
-	ret = ioctl(fd, LNVM_GET_N_FREE_BLOCKS, &n_left_blocks);
+	ret = ioctl(fd, NVM_DEV_NFREE_BLOCKS, &n_left_blocks);
 	if (ret)
 		perror("Cloud not obtain number of vblocks in LUN");
 	CuAssertIntEquals(ct, 0, n_left_blocks);
 
 	for (i = 0; i < vlun_info.n_vblocks; i++) {
-		vblock.lun = 0;
+		vblock.vlun_id = 0;
 		vblock.id = block_ids[i];
 
-		ret = ioctl(fd, LNVM_PUT_BLOCK, &vblock);
+		ret = ioctl(fd, NVM_PR_PUT_BLOCK, &vblock);
 		if (ret) {
 			perror("Could not put block to LightNVM BM");
 			exit(-1);
@@ -237,7 +240,7 @@ retry:
 	}
 
 	n_left_blocks = 0;
-	ret = ioctl(fd, LNVM_GET_N_FREE_BLOCKS, &n_left_blocks);
+	ret = ioctl(fd, NVM_DEV_NFREE_BLOCKS, &n_left_blocks);
 	if (ret)
 		perror("Cloud not obtain number of vblocks in LUN");
 
@@ -282,7 +285,7 @@ static void clean_bm_Suite()
 
 int main(int argc, char **argv)
 {
-	char lnvm_dev[LNVM_DEV_MAX_LEN];
+	char lnvm_dev[NVM_DEV_MAX_LEN];
 	int ret;
 
 	if (argc != 2) {
@@ -291,9 +294,9 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	if (strlen(argv[1]) > LNVM_DEV_MAX_LEN) {
+	if (strlen(argv[1]) > NVM_DEV_MAX_LEN) {
 		printf("Argument lnvm_dev can be maximum %d characters\n",
-							LNVM_DEV_MAX_LEN - 1);
+							NVM_DEV_MAX_LEN - 1);
 	}
 
 	strcpy(lnvm_dev, argv[1]);

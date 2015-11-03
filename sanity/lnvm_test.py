@@ -200,7 +200,7 @@ def configure_paths(lnvm_driver, args):
     lnvm_config = '/sys/module/lnvm/parameters/configure_debug'
 
     if str(args).find("bm_tests") != -1:
-        lnvm_target = "nba"
+        lnvm_target = "dflash"
     else:
         lnvm_target = "rrpc"
 
