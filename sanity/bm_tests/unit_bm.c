@@ -291,7 +291,7 @@ static void test_rw_2(CuTest *ct)
 		ret = ioctl(fd, NVM_PR_GET_BLOCK, &vblock);
 		if (ret) {
 			perror("Could not get new block from LightNVM BM");
-			exit(-1);
+			goto free_blocks;
 		}
 
 		block_ids[i] = vblock.id;
@@ -332,6 +332,7 @@ retry:
 		perror("Cloud not obtain number of vblocks in LUN");
 	CuAssertIntEquals(ct, 0, n_left_blocks);
 
+free_blocks:
 	for (i = 0; i < vlun_info.n_vblocks; i++) {
 		vblock.vlun_id = 0;
 		vblock.id = block_ids[i];
