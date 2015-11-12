@@ -17,6 +17,8 @@
 #define NVM_DEV_MAX_LEN 11
 #define PAGE_SIZE 4096
 
+#define N_TEST_BLOCKS 100
+
 static CuSuite *per_test_suite = NULL;
 static int fd;
 
@@ -58,6 +60,108 @@ static int lnvm_get_features()
 		"\t- Number of pages per block: %lu\n",
 		vlun_info.n_vblocks, vlun_info.n_pages_per_blk);
 	return ret;
+}
+
+/**
+ * Test0:
+ *	- Get and put blocks without submitting IOs
+ */
+static void test_rw_0(CuTest *ct)
+{
+	static struct nvm_ioctl_vblock vblock[N_TEST_BLOCKS];
+	int i;
+	int ret;
+
+	printf("Test0...");
+
+	/* get block from lun 0*/
+	vblock[0].vlun_id = 0;
+
+	/* get block from lun 0*/
+	ret = ioctl(fd, NVM_PR_GET_BLOCK, &vblock[0]);
+	if (ret) {
+		perror("Could not get new block from LightNVM BM");
+		exit(-1);
+	}
+
+	printf("Get Block from lun:%d. Id:%llu, bppa:%llu\n",
+			vblock[0].vlun_id,
+			vblock[0].id,
+			vblock[0].bppa);
+
+	/* put block */
+	ret = ioctl(fd, NVM_PR_PUT_BLOCK, &vblock[0]);
+	if (ret) {
+		perror("Could not put block to LightNVM BM");
+		exit(-1);
+	}
+
+	printf("Put Block to lun:%d. Id:%llu, bppa:%llu\n",
+			vblock[0].vlun_id,
+			vblock[0].id,
+			vblock[0].bppa);
+
+	/* Get block, put block */
+	for (i = 0; i < N_TEST_BLOCKS; i++) {
+		/* get block from lun 0*/
+		vblock[i].vlun_id = 0;
+
+		/* get block from lun 0*/
+		ret = ioctl(fd, NVM_PR_GET_BLOCK, &vblock[i]);
+		if (ret) {
+			perror("Could not get new block from LightNVM BM");
+			exit(-1);
+		}
+
+		printf("Get Block from lun:%d. Id:%llu, bppa:%llu\n",
+			vblock[i].vlun_id,
+			vblock[i].id,
+			vblock[i].bppa);
+
+		/* put block */
+		ret = ioctl(fd, NVM_PR_PUT_BLOCK, &vblock[i]);
+		if (ret) {
+			perror("Could not put block to LightNVM BM");
+			exit(-1);
+		}
+
+		printf("Put Block from lun:%d. Id:%llu, bppa:%llu\n",
+			vblock[i].vlun_id,
+			vblock[i].id,
+			vblock[i].bppa);
+	}
+
+	/* Get all blocks, put all blocks */;
+	for (i = 0; i < N_TEST_BLOCKS; i++) {
+		/* get block from lun 0*/
+		vblock[i].vlun_id = 0;
+
+		/* get block from lun 0*/
+		ret = ioctl(fd, NVM_PR_GET_BLOCK, &vblock[i]);
+		if (ret) {
+			perror("Could not get new block from LightNVM BM");
+			exit(-1);
+		}
+
+		printf("Get Block from lun:%d. Id:%llu, bppa:%llu\n",
+			vblock[i].vlun_id,
+			vblock[i].id,
+			vblock[i].bppa);
+	}
+
+	for (i = 0; i < N_TEST_BLOCKS; i++) {
+		/* put block */
+		ret = ioctl(fd, NVM_PR_PUT_BLOCK, &vblock[i]);
+		if (ret) {
+			perror("Could not put block to LightNVM BM");
+			exit(-1);
+		}
+
+		printf("Put Block from lun:%d. Id:%llu, bppa:%llu\n",
+			vblock[i].vlun_id,
+			vblock[i].id,
+			vblock[i].bppa);
+	}
 }
 
 /**
@@ -256,6 +360,7 @@ CuSuite* bm_GetSuite()
 {
 	per_test_suite = CuSuiteNew();
 
+	SUITE_ADD_TEST(per_test_suite, test_rw_0);
 	SUITE_ADD_TEST(per_test_suite, test_rw_1);
 	SUITE_ADD_TEST(per_test_suite, test_rw_2);
 
