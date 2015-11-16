@@ -109,8 +109,8 @@ def bm_tests(args, f):
                 stdout=None)
     result = subprocess.call(["make", "-C", "bm_tests"], stdout=None)
 
-    command = ("bm_tests/bm_tests")
-    result = subprocess.call([command, lnvm_device])
+    command = ("sudo sh -c 'bm_tests/bm_tests sanity'")
+    result = subprocess.call(command, shell = True)
 
 def generated(args, f):
     global fio_num_jobs
@@ -204,9 +204,10 @@ def configure_paths(lnvm_driver, args):
     else:
         lnvm_target = "rrpc"
 
-    lnvm_config_cmd = ("echo \"a " + lnvm_driver + " " + lnvm_device + " " +
-                                        lnvm_target + " 0:0\" > " + lnvm_config)
-    lnvm_remove_cmd = ("echo \"d " + lnvm_device + "\" > " + lnvm_config)
+    lnvm_config_cmd = ("sudo sh -c 'echo \"a " + lnvm_driver + " " +
+            lnvm_device + " " + lnvm_target + " 0:0\" > " + lnvm_config + "'")
+    lnvm_remove_cmd = ("sudo sh -c 'echo \"d " + lnvm_device + "\" > " +
+            lnvm_config + "'")
 
 def main():
     parser = argparse.ArgumentParser(
