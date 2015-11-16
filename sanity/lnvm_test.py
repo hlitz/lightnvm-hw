@@ -50,7 +50,8 @@ def store_output(f, result):
 
 def execute_test(command):
         os.system("sleep 2") #Give time to finish inflight IOs
-        output = subprocess.check_output(command, shell=True)
+        sudo_command = "sudo sh -c '" + command + "'"
+        output = subprocess.check_output(sudo_command, shell=True)
         return output
 
 
