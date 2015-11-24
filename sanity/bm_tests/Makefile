@@ -6,6 +6,7 @@ DEPS = ../CuTest/CuTest.h
 OBJ = unit_bm.o ../CuTest/CuTest.o
 
 %.o: %.c $(DEPS)
+	git submodule -q foreach git pull -q origin master
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 bm_tests: $(OBJ)
