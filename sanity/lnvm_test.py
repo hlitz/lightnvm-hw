@@ -104,14 +104,25 @@ def execute_minimal_test(command):
 
     return result
 
-def bm_tests(args, f):
-    if os.path.exists("bm_tests/bm_tests"):
-        result = subprocess.call(["make", "clean", "-C", "bm_tests"],
-                stdout=None)
-    result = subprocess.call(["make", "-C", "bm_tests"], stdout=None)
+def mm_tests(args, f):
 
-    command = ("sudo sh -c 'bm_tests/bm_tests sanity'")
-    result = subprocess.call(command, shell = True)
+    # Pull liblightnvm last version
+    try:
+        cmd = ("git submodule foreach git pull origin master")
+        subprocess.call([cmd], stdout=None)
+    except:
+        print "IMPORTANT: Cannot update liblightnvm - media manager tests might be outdated"
+
+    # install liblightnvm library from submodule
+    result = subprocess.call(["sudo", "make", "-C", "../liblightnvm", "install_local"],
+            stdout=None)
+
+    result = subprocess.call(["sudo", "make", "-C", "../liblightnvm", "install"],
+            stdout=None)
+
+    # exuecute liblightnvm sanity checks
+    result = subprocess.call(["sudo", "make", "-C", "../liblightnvm", "check"],
+            stdout=None)
 
 def generated(args, f):
     global fio_num_jobs
@@ -200,14 +211,12 @@ def configure_paths(lnvm_driver, args):
     lnvm_file = '/dev/' + lnvm_device
     lnvm_config = '/sys/module/lnvm/parameters/configure_debug'
 
-    if str(args).find("bm_tests") != -1:
-        lnvm_target = "dflash"
-    else:
+    # liblightnvm creates the necessary targets for its unit tests
+    if str(args).find("mm_tests") == -1:
         lnvm_target = "rrpc"
-
-    lnvm_config_cmd = ("sudo sh -c 'echo \"a " + lnvm_driver + " " +
+        lnvm_config_cmd = ("sudo sh -c 'echo \"a " + lnvm_driver + " " +
             lnvm_device + " " + lnvm_target + " 0:0\" > " + lnvm_config + "'")
-    lnvm_remove_cmd = ("sudo sh -c 'echo \"d " + lnvm_device + "\" > " +
+        lnvm_remove_cmd = ("sudo sh -c 'echo \"d " + lnvm_device + "\" > " +
             lnvm_config + "'")
 
 def main():
@@ -223,9 +232,9 @@ def main():
                         \'cat /sys/module/lnvm/parameters/configure_debug\'. \
                         This argument is mandatory.')
 
-    parser.add_argument('-bm', '--block-manager', dest='action',
-            action='store_const', const=bm_tests, help='Execute LightNVM block \
-            manager unit tests located in bm_tests/')
+    parser.add_argument('-mm', '--media-manager', dest='action',
+            action='store_const', const=mm_tests, help='Execute LightNVM media \
+            manager unit tests using liblightnvm.')
 
     parser.add_argument('-g', '--generated', dest='action', action='store_const',
                         const=generated, help='Execute generated fio tests \
