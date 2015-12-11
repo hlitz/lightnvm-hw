@@ -106,22 +106,24 @@ def execute_minimal_test(command):
 
 def mm_tests(args, f):
 
+    devnull = open(os.devnull, 'wb')
+
     # Pull liblightnvm last version
     try:
         cmd = ("git submodule foreach git pull origin master")
-        subprocess.call([cmd], stdout=None)
+        subprocess.call([cmd], stdout=devnull)
     except:
         print "IMPORTANT: Cannot update liblightnvm - media manager tests might be outdated"
 
     # install liblightnvm library from submodule
-    result = subprocess.call(["sudo", "make", "-C", "../liblightnvm", "install_local"],
-            stdout=None)
+    subprocess.call(["sudo", "make", "-C", "../liblightnvm", "install_local"],
+            stdout=devnull, stderr=devnull)
 
-    result = subprocess.call(["sudo", "make", "-C", "../liblightnvm", "install"],
-            stdout=None)
+    subprocess.call(["sudo", "make", "-C", "../liblightnvm", "install"],
+            stdout=devnull, stderr=devnull)
 
-    # exuecute liblightnvm sanity checks
-    result = subprocess.call(["sudo", "make", "-C", "../liblightnvm", "check"],
+    # execute liblightnvm sanity checks
+    subprocess.call(["sudo", "make", "-C", "../liblightnvm", "check"],
             stdout=None)
 
 def generated(args, f):
