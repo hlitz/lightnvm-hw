@@ -17,7 +17,7 @@ the kernel on debian/ubuntu based systems.
 This folder contains some useful scripts for managing the lighnvm fork
 of QEMU to enable testing without physical lightnvm compliant block
 devices. The QEMU fork is at
-https://github.com/OpenChannelSSD/qemu-nvme. 
+https://github.com/OpenChannelSSD/qemu-nvme.
 
 ## nvme-cli
 
@@ -29,8 +29,8 @@ project. Refer to the README in the submodule for more information.
 This is a sanity test ;-). Run the python script called lnvm_test.py
 with appropriate arguments to create and test lightnvm block devices that
 use kernel plug-ins as the FTL. 'python lnvm_test.py -h' gives an
-overview of the available commands.Sanity uses the most excelent fio tool
-in order to test the createdblock device.
+overview of the available commands.Sanity uses the most excellent fio tool
+in order to test the created block device.
 
 Useful arguments are: <br />
 -g: Execute a set of auto-generated fio tests <br />
@@ -41,8 +41,11 @@ single fio tests.
 
 Note that both scripts must be launched with root privileges due to fio
 
-TODO: -c: Add single test support as in sanity.sh <br />
-TODO: Load/unload LightNVM target for each test
+Finally, the media manager sanity tests depend on liblightnvm [1]. Until
+liblightnvm is provided as a packet, we have a git submodule for it, which we
+update and install before the tests are executed.
+
+[1] https://github.com/OpenChannelSSD/liblightnvm
 
 # Contributions
 
